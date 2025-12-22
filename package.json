@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/Moolmancell/quo-ai-backend/issues"
   },
-  "homepage": "https://github.com/Moolmancell/quo-ai-backend#readme"
+  "homepage": "https://github.com/Moolmancell/quo-ai-backend#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
 }
