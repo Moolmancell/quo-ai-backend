@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/Moolmancell/quo-ai-backend#readme",
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1"
   }
