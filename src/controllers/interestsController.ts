@@ -1,5 +1,14 @@
 import { prisma } from '../lib/prisma';
 import { Request, Response } from 'express';
+import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
+import { TaskType } from '@google/generative-ai';
+
+// Initialize Gemini Embeddings
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+  modelName: "gemini-embedding-001", // Latest stable model
+  taskType: TaskType.RETRIEVAL_DOCUMENT, // Optimized for storing in a DB
+});
 
 export async function getInterests(req: Request, res: Response) {
   const userSession = res.locals.session;
@@ -29,13 +38,26 @@ export async function submitInterests(req: Request, res: Response) {
   const userSession = res.locals.session;
   const userID = userSession.user.id;
   const { interests } = req.body; // Expecting { interests: string[] }
-  //TODO: Add interests into the vector DB as well (intrestsEmbeddding)
   console.log(req.body)
   try {
-    await prisma.user.update({
-      where: { id: userID },
-      data: { interests: interests },
-    })
+
+    const interestString = `The user is interested in: ${interests.join(", ")}`;
+
+    // Generate Gemini Vector (768 dimensions)
+    const vector = await embeddings.embedQuery(interestString);
+
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userID },
+        data: { interests },
+      }),
+      prisma.$executeRaw`
+        UPDATE "user"
+        SET "interestEmbedding" = ${vector}::vector
+        WHERE id = ${userID}
+      `,
+    ]);
+
     return res.status(200).json({ message: "Interests updated successfully" });
   } catch (error) {
     console.error("Error submitting interests:", error);
