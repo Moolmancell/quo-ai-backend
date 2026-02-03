@@ -21,7 +21,7 @@ model User {
   updatedAt         DateTime                     @updatedAt
   name              String
   interests         String[]
-  interestEmbedding Unsupported("vector(1536)")?
+  interestEmbedding Unsupported("vector(768)")?
   emailVerified     Boolean                      @default(false)
   image             String?
   sessions          Session[]
