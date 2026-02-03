@@ -25,3 +25,20 @@ export async function getInterests(req: Request, res: Response) {
   }
 }
 
+export async function submitInterests(req: Request, res: Response) {
+  const userSession = res.locals.session;
+  const userID = userSession.user.id;
+  const { interests } = req.body; // Expecting { interests: string[] }
+  //TODO: Add interests into the vector DB as well (intrestsEmbeddding)
+  console.log(req.body)
+  try {
+    await prisma.user.update({
+      where: { id: userID },
+      data: { interests: interests },
+    })
+    return res.status(200).json({ message: "Interests updated successfully" });
+  } catch (error) {
+    console.error("Error submitting interests:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+}
