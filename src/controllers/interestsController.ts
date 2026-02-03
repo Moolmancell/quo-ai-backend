@@ -8,6 +8,7 @@ const embeddings = new GoogleGenerativeAIEmbeddings({
   apiKey: process.env.GOOGLE_API_KEY || "",
   modelName: "gemini-embedding-001", // Latest stable model
   taskType: TaskType.RETRIEVAL_DOCUMENT, // Optimized for storing in a DB
+  //TODO: Error cant change output dimension?
 });
 
 export async function getInterests(req: Request, res: Response) {
