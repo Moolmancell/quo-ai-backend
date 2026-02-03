@@ -2,11 +2,8 @@ import { prisma } from '../lib/prisma';
 import { Request, Response } from 'express';
 
 export async function getInterests(req: Request, res: Response) {
-  const { userID } = req.params;
-
-  if (!userID) {
-    return res.status(400).json({ message: "User ID is required" });
-  }
+  const userSession = res.locals.session;
+  const userID = userSession.user.id;
 
   try {
     const user = await prisma.user.findUnique({
