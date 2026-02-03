@@ -53,7 +53,7 @@ export async function submitInterests(req: Request, res: Response) {
       }),
       prisma.$executeRaw`
         UPDATE "user"
-        SET "interestEmbedding" = ${vector}::vector
+        SET "interestEmbedding" = ${JSON.stringify(vector)}::vector
         WHERE id = ${userID}
       `,
     ]);
