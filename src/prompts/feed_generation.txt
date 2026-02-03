@@ -1,0 +1,25 @@
+Act as a research assistant. I need a JSON array of 20 distinct quotes from famous essays, long-form articles, or investigative news pieces. 
+
+For each entry, you MUST:
+1. Conduct a live web search to find the EXACT verbatim quote.
+2. Provide the absolute, live URL where that quote can be found. 
+3. Verify that the URL is not a 404 by checking the publication date and slug.
+4. Extract the primary favicon URL for the domain.
+
+Output strictly in this JSON format:
+[
+  {
+    "title": "Title of the Article",
+    "author": "Author Name",
+    "publication": "Name of News/Journal",
+    "src": "https://verified-link.com/article-slug",
+    "datePublished": "YYYY-MM-DD"
+    "quote": "The exact verbatim quote here.",
+    "topic": "Category"
+  }
+]
+
+Constraints: 
+- Do not hallucinate dates or IDs in the URLs.
+- If you cannot find a direct link to the article, skip it and find another.
+- No prose, just the JSON.
