@@ -10,7 +10,7 @@ const corsOptions = {
   origin: process.env.ORIGIN_URL || 'http://localhost:3000', 
   credentials: true,
 };
-
+app.use(express.json());
 app.use(cors(corsOptions));
 
 app.all('/api/auth/{*any}', toNodeHandler(auth));
@@ -26,5 +26,5 @@ app.use('/api/interests', isAuthenticated, interestsRouter);
 //TODO: Create /api/feed/delete-bookmark/:userID endpoint
 
 
-app.use(express.json());
+
 export default app;
