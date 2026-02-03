@@ -14,16 +14,18 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  name          String
-  emailVerified Boolean   @default(false)
-  image         String?
-  sessions      Session[]
-  accounts      Account[]
+  id                String                       @id @default(cuid())
+  email             String                       @unique
+  password          String?
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  name              String
+  interests         String[]
+  interestEmbedding Unsupported("vector(1536)")?
+  emailVerified     Boolean                      @default(false)
+  image             String?
+  sessions          Session[]
+  accounts          Account[]
 
   @@map("user")
 }
