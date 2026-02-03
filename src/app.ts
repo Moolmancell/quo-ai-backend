@@ -4,6 +4,7 @@ import { auth } from "./lib/auth";
 import cors from "cors";
 const app = express();
 import interestsRouter from "./routes/interestsRouter";
+import { isAuthenticated } from "./middlewares/isAuthenticated";
 
 const corsOptions = {
   origin: process.env.ORIGIN_URL || 'http://localhost:3000', 
@@ -15,7 +16,7 @@ app.use(cors(corsOptions));
 app.all('/api/auth/{*any}', toNodeHandler(auth));
 
 //Interest Check Endpoints
-app.use('/api/interests', interestsRouter);
+app.use('/api/interests', isAuthenticated, interestsRouter);
 
 //Feed Endpoints
 //TODO: Create /api/feed/get-feed/:userID endpoint (using LangChain to generate feed based on interests)
