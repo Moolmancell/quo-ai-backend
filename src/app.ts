@@ -5,6 +5,7 @@ import cors from "cors";
 const app = express();
 import interestsRouter from "./routes/interestsRouter";
 import { isAuthenticated } from "./middlewares/isAuthenticated";
+import feedRouter from "./routes/feedRouter";
 
 const corsOptions = {
   origin: process.env.ORIGIN_URL || 'http://localhost:3000', 
@@ -17,14 +18,6 @@ app.all('/api/auth/{*any}', toNodeHandler(auth));
 
 //Interest Check Endpoints
 app.use('/api/interests', isAuthenticated, interestsRouter);
-
-//Feed Endpoints
-//TODO: Create /api/feed/get-feed/:userID endpoint (using LangChain to generate feed based on interests)
-//TODO: Create /api/feed/get-featured-image/:userID endpoint (use cloudinary for Image Proxy Buffer)
-//TODO: Create /api/feed/get-favicon-image/:userID endpoint
-//TODO: Create /api/feed/add-bookmark/:userID endpoint
-//TODO: Create /api/feed/delete-bookmark/:userID endpoint
-
-
+app.use('/api/feed', isAuthenticated, feedRouter);
 
 export default app;
