@@ -18,6 +18,7 @@ app.all('/api/auth/{*any}', toNodeHandler(auth));
 
 //Interest Check Endpoints
 app.use('/api/interests', isAuthenticated, interestsRouter);
+//TODO: Create a /admin endpoint to manage quotes
 app.use('/api/feed', isAuthenticated, feedRouter);
 
 export default app;
