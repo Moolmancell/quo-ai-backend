@@ -28,12 +28,14 @@
     "@langchain/google-genai": "^2.1.14",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
+    "axios": "^1.13.4",
     "better-auth": "^1.4.9",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "langchain": "^1.2.16",
     "pg": "^8.16.3",
+    "rss-parser": "^3.13.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
