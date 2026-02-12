@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { generateQuotes } from "../controllers/feedController";
 const feedRouter = Router();
 
 //Feed Endpoints
@@ -7,5 +8,7 @@ const feedRouter = Router();
 //TODO: Create /api/feed/get-favicon-image/:userID endpoint
 //TODO: Create /api/feed/add-bookmark/:userID endpoint
 //TODO: Create /api/feed/delete-bookmark/:userID endpoint
+//TODO: Create /api/feed/gen-feed endpoint
+feedRouter.post('/gen-feed', generateQuotes)
 
 export default feedRouter;
