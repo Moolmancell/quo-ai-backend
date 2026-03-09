@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { TavilySearch } from "@langchain/tavily";
 import Parser from "rss-parser";
-import { GoogleGenAIEmbeddingsWithDimensions } from "../lib/gemini-embedings";
+import { createGeminiEmbeddings } from "../lib/gemini-embedings";
 import { TaskType } from "@google/generative-ai";
 
 interface Blog {
@@ -96,11 +96,7 @@ async function rankRSSfeeds(
         return dotProduct / (Math.sqrt(mA) * Math.sqrt(mB));
     }    
 
-    const embeddings = new GoogleGenAIEmbeddingsWithDimensions({
-        apiKey: process.env.GOOGLE_API_KEY || "",
-        model: "gemini-embedding-001", // Latest Gemini embedding model
-        taskType: TaskType.RETRIEVAL_DOCUMENT,
-    });
+    const embeddings = createGeminiEmbeddings(); // Use the patched embeddings with fixed dimensionality
 
     // 1. Generate embeddings for all blog descriptions
     // We combine Title + Description for better context
