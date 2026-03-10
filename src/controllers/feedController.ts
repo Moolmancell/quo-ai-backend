@@ -76,6 +76,19 @@ async function removeEmptyDescriptionsOrTitles(feeds: Blog[]) {
     return feeds.filter(feed => feed.description.trim() !== "" || feed.title.trim() !== "");
 }
 
+async function removeDuplicateFeeds(feeds: Blog[]) {
+    const seen = new Set();
+    return feeds.filter(feed => {
+        const identifier = `${feed.url}-${feed.title}`;
+        if (seen.has(identifier)) {
+            return false;
+        } else {
+            seen.add(identifier);
+            return true;
+        }
+    });
+}
+
 async function rankRSSfeeds(
     blogs: Blog[],
     userInterest: string,
