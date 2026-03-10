@@ -72,6 +72,10 @@ async function getRSSFeedDescription(feedUrls: string[]) {
     return updatedBlogs;
 }
 
+async function removeEmptyDescriptionsOrTitles(feeds: Blog[]) {
+    return feeds.filter(feed => feed.description.trim() !== "" || feed.title.trim() !== "");
+}
+
 async function rankRSSfeeds(
     blogs: Blog[],
     userInterest: string,
