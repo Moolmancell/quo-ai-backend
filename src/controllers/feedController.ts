@@ -3,7 +3,7 @@ import { TavilySearch } from "@langchain/tavily";
 import Parser from "rss-parser";
 import { createGeminiEmbeddings } from "../lib/gemini-embedings";
 import { TaskType } from "@google/generative-ai";
-
+import { prisma } from '../lib/prisma';
 interface Blog {
     url: string;
     description: string;
@@ -91,7 +91,7 @@ async function removeDuplicateFeeds(feeds: Blog[]) {
 
 async function rankRSSfeeds(
     blogs: Blog[],
-    userInterest: string,
+    userInterestEmbedding: number[],
 ) {
 
     function cosineSimilarity(vecA: number[], vecB: number[]): number {
@@ -111,7 +111,7 @@ async function rankRSSfeeds(
         }
 
         return dotProduct / (Math.sqrt(mA) * Math.sqrt(mB));
-    }    
+    }
 
     const embeddings = createGeminiEmbeddings(); // Use the patched embeddings with fixed dimensionality
 
@@ -120,8 +120,8 @@ async function rankRSSfeeds(
     const blogTexts = blogs.map(b => `${b.title}: ${b.description}`);
     const blogVectors = await embeddings.embedDocuments(blogTexts);
 
-    // 2. Generate embedding for the user's interest
-    const queryEmbedding = await embeddings.embedQuery(userInterest);
+    // 2. Get embedding for the user's interest
+    const queryEmbedding = userInterestEmbedding;
 
     // 3. Calculate Cosine Similarity and attach to blog objects
     const rankedBlogs = blogs.map((blog, index) => {
@@ -149,15 +149,28 @@ async function sendQuotesToDatabase() {
 //main controller function to generate quotes based on user interests
 export async function generateQuotes(req: Request, res: Response) {
     try {
-        const categories = ['Technology', 'Programming', 'Philosophy', 'Video Games', 'Film'];
+        const userId = res.locals.session?.user?.id;
+
+        const users = await prisma.$queryRaw<any[]>`
+            SELECT 
+                interests, 
+                "interestEmbedding"::vector as "interest_embedding"
+            FROM "user"
+            WHERE id = ${userId}
+            LIMIT 1
+        `;
+
+        const user = users[0];
+
+        const categories = user.interests || [];
         const searchResults = await findRSSfeeds(categories) as any[];
         const feedDescriptions = await getRSSFeedDescription(searchResults.map((feed: any) => feed.url));
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
-        const rankedFeeds = await rankRSSfeeds(uniqueFeeds, categories.join(" "));
-        
-        console.log("Feed Descriptions:", rankedFeeds);
-        
+        //const rankedFeeds = await rankRSSfeeds(uniqueFeeds, user.interest_embedding);
+
+        console.log(uniqueFeeds);
+
         return res.status(200).json({
             success: true,
         });
