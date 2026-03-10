@@ -152,7 +152,9 @@ export async function generateQuotes(req: Request, res: Response) {
         const categories = ['Technology', 'Programming', 'Philosophy', 'Video Games', 'Film'];
         const searchResults = await findRSSfeeds(categories) as any[];
         const feedDescriptions = await getRSSFeedDescription(searchResults.map((feed: any) => feed.url));
-        console.log("Feed Descriptions:", feedDescriptions);
+        const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
+        const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
+        console.log("Feed Descriptions:", uniqueFeeds);
         return res.status(200).json({
             success: true,
         });
