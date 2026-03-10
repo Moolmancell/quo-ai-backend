@@ -117,12 +117,12 @@ async function rankRSSfeeds(
 
     // 1. Generate embeddings for all blog descriptions
     // We combine Title + Description for better context
-    const blogTexts = blogs.map(b => `${b.title}: ${b.description}`);
+    const blogTexts = blogs.map(b => `Title: ${b.title}\nDescription: ${b.description}`);
     const blogVectors = await embeddings.embedDocuments(blogTexts);
 
     // 2. Get embedding for the user's interest
-    const queryEmbedding = userInterestEmbedding;
-
+    const queryEmbedding = userInterestEmbedding; 
+    
     // 3. Calculate Cosine Similarity and attach to blog objects
     const rankedBlogs = blogs.map((blog, index) => {
         const blogVector = blogVectors[index];
@@ -167,9 +167,9 @@ export async function generateQuotes(req: Request, res: Response) {
         const feedDescriptions = await getRSSFeedDescription(searchResults.map((feed: any) => feed.url));
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
-        //const rankedFeeds = await rankRSSfeeds(uniqueFeeds, user.interest_embedding);
+        const rankedFeeds = await rankRSSfeeds(uniqueFeeds, JSON.parse(user.interest_embedding));
 
-        console.log(uniqueFeeds);
+        console.log("Ranked Feeds:", rankedFeeds);
 
         return res.status(200).json({
             success: true,
