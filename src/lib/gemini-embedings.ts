@@ -7,7 +7,7 @@ import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 export const createGeminiEmbeddings = (dimensions: number = 768) => {
     // 1. Create the standard instance
     const embeddings = new GoogleGenerativeAIEmbeddings({
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         // apiKey is automatically picked up from process.env.GOOGLE_API_KEY
     });
 
