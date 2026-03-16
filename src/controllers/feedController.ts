@@ -121,8 +121,8 @@ async function rankRSSfeeds(
     const blogVectors = await embeddings.embedDocuments(blogTexts);
 
     // 2. Get embedding for the user's interest
-    const queryEmbedding = userInterestEmbedding; 
-    
+    const queryEmbedding = userInterestEmbedding;
+
     // 3. Calculate Cosine Similarity and attach to blog objects
     const rankedBlogs = blogs.map((blog, index) => {
         const blogVector = blogVectors[index];
@@ -134,8 +134,58 @@ async function rankRSSfeeds(
     return rankedBlogs.sort((a, b) => (b.score || 0) - (a.score || 0));
 }
 
-async function extractArticles() {
+async function filterTopFeeds(feeds: Blog[], topN: number) {
+    return feeds.slice(0, topN);
+}
 
+async function extractArticles(feeds: Blog[]) {
+    const parser = new Parser();
+
+    const allArticles = await Promise.all(
+        feeds.map(async (blog) => {
+            try {
+                const minCharacters = 500; // Minimum character threshold for content
+                const buffer = 5000;
+                const feed = await parser.parseURL(blog.url);
+
+                const recentItems = feed.items.slice(0, 5);
+
+                return recentItems
+                    .map((item) => {
+
+                        let cleanContent = item['content:encoded'] || item.content || item.contentSnippet || ''; cleanContent = cleanContent
+                            .replace(/<[^>]*>/g, '') // Removes HTML tags
+                            .replace(/\bhttps?:\/\/\S+|www\.\S+/gi, '') // Removes URLs
+                            .replace(/\s+/g, ' ') // Collapses extra whitespace/newlines into single spaces
+                            .trim();
+
+                        if (cleanContent.length > (buffer * 2)) {
+                            const head = cleanContent.substring(0, buffer);
+                            const tail = cleanContent.substring(cleanContent.length - buffer);
+                            cleanContent = `${head}\n\n[...middle section omitted...]\n\n${tail}`;
+                        }
+
+                        return {
+                            title: item.title || 'Untitled',
+                            link: item.link || '',
+                            pubDate: item.pubDate || '',
+                            content: cleanContent,
+                            author: item.creator || feed.title || 'Unknown Author',
+                            thumbnail: item.enclosure?.url || item.media?.$?.url,
+                            blogTitle: blog.title,
+                        }
+                    })
+                    // The Filter Logic:
+                    .filter((article) => article.content.length >= minCharacters);
+
+            } catch (error) {
+                console.error(`Failed to fetch feed for ${blog.title}:`, error);
+                return [];
+            }
+        })
+    );
+
+    return allArticles.flat();
 }
 
 async function findQuotesFromArticles() {
@@ -168,11 +218,12 @@ export async function generateQuotes(req: Request, res: Response) {
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
         const rankedFeeds = await rankRSSfeeds(uniqueFeeds, JSON.parse(user.interest_embedding));
-
-        console.log("Ranked Feeds:", rankedFeeds);
-
+        const topFeeds = await filterTopFeeds(rankedFeeds, 10);
+        const extractedArticles = await extractArticles(topFeeds);
+        
         return res.status(200).json({
             success: true,
+            data: extractedArticles
         });
     } catch (error) {
         console.error("Feed generation error:", error);
