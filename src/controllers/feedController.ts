@@ -169,13 +169,13 @@ async function extractArticles(feeds: Blog[]) {
 
                         return {
                             title: item.title || 'Untitled',
-                            link: item.link || '',
-                            pubDate: item.pubDate || '',
+                            src: item.link || '',
+                            datePublished: item.pubDate || '',
                             content: cleanContent,
                             author: item.creator || feed.title || 'Unknown Author',
                             thumbnail: item.enclosure?.url || item.media?.$?.url,
                             favicon: blog.favicon,
-                            blogTitle: blog.title,
+                            publication: blog.title,
                         }
                     })
                     // The Filter Logic:
