@@ -8,6 +8,7 @@ interface Blog {
     url: string;
     description: string;
     title: string;
+    favicon?: string;
     score?: number;
 }
 
@@ -45,7 +46,7 @@ async function findRSSfeeds(interests: string[]) {
     }
 }
 
-async function getRSSFeedDescription(feedUrls: string[]) {
+async function getRSSFeedDescriptionTitleFavicon(feedUrls: string[]) {
     const parser = new Parser();
     const updatedBlogs = await Promise.all(
         feedUrls.map(async (url) => {
@@ -56,7 +57,8 @@ async function getRSSFeedDescription(feedUrls: string[]) {
                 return {
                     url,
                     description: feed.description || "",
-                    title: feed.title || ""
+                    title: feed.title || "",
+                    favicon: feed.image?.url || `${new URL(url).origin}/favicon.ico`
                 };
             } catch (error) {
                 console.error(`Error fetching feed for ${url}:`, error instanceof Error ? error.message : String(error));
@@ -172,6 +174,7 @@ async function extractArticles(feeds: Blog[]) {
                             content: cleanContent,
                             author: item.creator || feed.title || 'Unknown Author',
                             thumbnail: item.enclosure?.url || item.media?.$?.url,
+                            favicon: blog.favicon,
                             blogTitle: blog.title,
                         }
                     })
@@ -214,7 +217,7 @@ export async function generateQuotes(req: Request, res: Response) {
 
         const categories = user.interests || [];
         const searchResults = await findRSSfeeds(categories) as any[];
-        const feedDescriptions = await getRSSFeedDescription(searchResults.map((feed: any) => feed.url));
+        const feedDescriptions = await getRSSFeedDescriptionTitleFavicon(searchResults.map((feed: any) => feed.url));
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
         const rankedFeeds = await rankRSSfeeds(uniqueFeeds, JSON.parse(user.interest_embedding));
