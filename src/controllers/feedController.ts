@@ -5,7 +5,6 @@ import { createGeminiEmbeddings } from "../lib/gemini-embedings";
 import { ChatGroq } from "@langchain/groq"
 import { prisma } from '../lib/prisma';
 import { PromptTemplate } from "@langchain/core/prompts";
-import { StructuredOutputParser } from "@langchain/core/output_parsers";
 import { z } from "zod";
 interface Blog {
     url: string;
