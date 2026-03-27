@@ -2,8 +2,10 @@ import { Request, Response } from "express";
 import { TavilySearch } from "@langchain/tavily";
 import Parser from "rss-parser";
 import { createGeminiEmbeddings } from "../lib/gemini-embedings";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { HuggingFaceInference } from "@langchain/community/llms/hf";
 import { prisma } from '../lib/prisma';
+import { PromptTemplate } from "@langchain/core/prompts";
+import { StructuredOutputParser } from "@langchain/core/output_parsers";
 import { z } from "zod";
 interface Blog {
     url: string;
@@ -13,7 +15,30 @@ interface Blog {
     score?: number;
 }
 
-async function findRSSfeeds(interests: string[]) {
+interface ArticleInput {
+    title: string;
+    src: string;
+    datePublished: string;
+    content: string;
+    author: string;
+    thumbnail: string;
+    favicon: string;
+    publication: string;
+}
+
+interface QuoteOutput {
+    title: string;
+    author: string;
+    publication: string;
+    src: string;
+    datePublished: string;
+    quote: string;
+    topic: string[];
+    thumbnail: string;
+    favicon: string;
+}
+
+async function findRSSfeeds(interests: string[], maxResults: number = 50) {
     console.log("----Finding Links----")
     function filterSubstackResults(links: any[]) {
         const feedLinks = links
@@ -29,7 +54,7 @@ async function findRSSfeeds(interests: string[]) {
     }
 
     const tool = new TavilySearch({
-        maxResults: 50,
+        maxResults: maxResults,
     });
 
     try {
@@ -143,7 +168,7 @@ async function filterTopFeeds(feeds: Blog[], topN: number) {
     return feeds.slice(0, topN);
 }
 
-async function extractArticles(feeds: Blog[]) {
+async function extractArticles(feeds: Blog[], numberOfArticles: number = 5) : Promise<ArticleInput[]> {
     console.log('----Extracting Articles----');
     const parser = new Parser();
 
@@ -154,7 +179,7 @@ async function extractArticles(feeds: Blog[]) {
                 const buffer = 5000;
                 const feed = await parser.parseURL(blog.url);
 
-                const recentItems = feed.items.slice(0, 5);
+                const recentItems = feed.items.slice(0, numberOfArticles);
 
                 return recentItems
                     .map((item) => {
@@ -178,7 +203,7 @@ async function extractArticles(feeds: Blog[]) {
                             content: cleanContent,
                             author: item.creator || feed.title || 'Unknown Author',
                             thumbnail: item.enclosure?.url || item.media?.$?.url,
-                            favicon: blog.favicon,
+                            favicon: blog.favicon || '',
                             publication: blog.title,
                         }
                     })
@@ -195,64 +220,76 @@ async function extractArticles(feeds: Blog[]) {
     return allArticles.flat();
 }
 
-async function findQuotesFromArticles(articles: any[], batchSize: number = 5) {
-    console.log('----Finding Quotes from Articles----');
-    const BatchExtractionSchema = z.object({
-        results: z.array(
+async function findQuotesFromArticles(articles: ArticleInput[]): Promise<QuoteOutput[]> {
+    console.log('----Extracting Quotes from Articles----');
+    const ExtractionSchema = z.object({
+        quotes: z.array(
             z.object({
-                articleIndex: z.number().describe("The index of the article in the provided list (0-based)"),
-                extractedQuotes: z.array(
-                    z.object({
-                        quote: z.string().describe("Exact quote text"),
-                        topic: z.array(z.string()).max(4)
-                    })
-                )
+                quote: z.string().describe("The exact, unaltered extracted quote from the text."),
+                topic: z.array(z.string()).max(4).describe("Up to 4 relevant categories or topics."),
             })
-        )
+        ).describe("A list of quotes extracted from the article."),
     });
-    const model = new ChatGoogleGenerativeAI({
-        model: "gemini-2.5-flash",
-        temperature: 0.2,
-    }).withStructuredOutput(BatchExtractionSchema);
 
-    const finalResults: any[] = [];
+    const parser = StructuredOutputParser.fromZodSchema(ExtractionSchema);
 
-    // Process articles in chunks (e.g., 5 at a time)
-    for (let i = 0; i < articles.length; i += batchSize) {
-        const chunk = articles.slice(i, i + batchSize);
+    // 3. Initialize Model 
+    // Note: Ensure you use an "Instruct" or "Chat" model (like Mistral or Llama 3) 
+    // for better JSON compliance.
+    const model = new HuggingFaceInference({
+        model: "Qwen/Qwen2.5-1.5B-Instruct",
+        temperature: 0.1,
+        apiKey: process.env.HF_API_KEY || "",
+        
+    });
 
-        // Prepare a numbered list for the prompt so the AI can track them
-        const chunkText = chunk.map((a, index) => `ID: ${index}\nContent: ${a.content}`).join("\n\n---\n\n");
+    // 4. Update Prompt to include Format Instructions
+    const prompt = PromptTemplate.fromTemplate(`
+        You are an expert editor and curator. 
+        Extract the most profound quotes from the content provided.
+        
+        {format_instructions}
+        
+        Rules:
+        1. Extract multiple quotes if they are insightful.
+        2. DO NOT alter the text; must be exact matches.
+        3. Max 4 topics per quote.
+        
+        Article Content:
+        {content}
+    `);
 
-        const prompt = `
-            Extract profound quotes from the following ${chunk.length} articles. 
-            Return the quotes grouped by their ID.
-            
-            Articles:
-            ${chunkText}
-        `;
+    const finalResults: QuoteOutput[] = [];
 
+    for (const article of articles) {
         try {
-            const response = await model.invoke(prompt);
+            // Format prompt with both the content AND the JSON instructions
+            const input = await prompt.format({
+                content: article.content,
+                format_instructions: parser.getFormatInstructions()
+            });
 
-            // Map back to your specific structure using the index to find the original metadata
-            response.results.forEach((articleResult) => {
-                const originalArticle = chunk[articleResult.articleIndex];
+            // 5. Invoke returns a string, so we parse it
+            const rawResponse = await model.invoke(input);
+            const result = await parser.parse(rawResponse);
 
-                const mapped = articleResult.extractedQuotes.map(q => ({
-                    title: originalArticle.title,
-                    author: originalArticle.author,
-                    publication: originalArticle.publication,
-                    src: originalArticle.src,
-                    datePublished: originalArticle.datePublished,
+            if (result && result.quotes) {
+                const mappedQuotes: QuoteOutput[] = result.quotes.map((q) => ({
+                    title: article.title,
+                    author: article.author,
+                    publication: article.publication, // Mapping 'blogTitle' to 'publication'
+                    src: article.src,
+                    datePublished: article.datePublished,
                     quote: q.quote,
                     topic: q.topic,
+                    thumbnail: article.thumbnail,
+                    favicon: article.favicon,
                 }));
-
-                finalResults.push(...mapped);
-            });
-        } catch (e) {
-            console.error("Batch failed, skipping chunk...", e);
+                console.log(`Extracted ${mappedQuotes.length} quotes from article: "${article.title}"`);
+                finalResults.push(...mappedQuotes);
+            }
+        } catch (error) {
+            console.error(`Error processing article "${article.title}":`, error);
         }
     }
     console.log('----Quote Extraction Done----');
@@ -280,13 +317,13 @@ export async function generateQuotes(req: Request, res: Response) {
         const user = users[0];
 
         const categories = user.interests || [];
-        const searchResults = await findRSSfeeds(categories) as any[];
+        const searchResults = await findRSSfeeds(categories, 20) as any[]; // Get 20 feed URLs to start with, we will filter down later
         const feedDescriptions = await getRSSFeedDescriptionTitleFavicon(searchResults.map((feed: any) => feed.url));
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
         const rankedFeeds = await rankRSSfeeds(uniqueFeeds, JSON.parse(user.interest_embedding));
-        const topFeeds = await filterTopFeeds(rankedFeeds, 10);
-        const extractedArticles = await extractArticles(topFeeds);
+        const topFeeds = await filterTopFeeds(rankedFeeds, 10); // Keep top 10 feeds to manage token limits and processing time
+        const extractedArticles = await extractArticles(topFeeds, 2); // Extract 2 articles per feed to stay within token limits
         const quotes = await findQuotesFromArticles(extractedArticles);
 
         console.log(`---- Pipeline Finished. Quotes found: ${quotes.length} ----`);
