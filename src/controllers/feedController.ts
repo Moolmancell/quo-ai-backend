@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { TavilySearch } from "@langchain/tavily";
 import Parser from "rss-parser";
 import { createGeminiEmbeddings } from "../lib/gemini-embedings";
-import { HuggingFaceInference } from "@langchain/community/llms/hf";
+import { ChatGroq } from "@langchain/groq"
 import { prisma } from '../lib/prisma';
 import { PromptTemplate } from "@langchain/core/prompts";
 import { StructuredOutputParser } from "@langchain/core/output_parsers";
@@ -168,7 +168,7 @@ async function filterTopFeeds(feeds: Blog[], topN: number) {
     return feeds.slice(0, topN);
 }
 
-async function extractArticles(feeds: Blog[], numberOfArticles: number = 5) : Promise<ArticleInput[]> {
+async function extractArticles(feeds: Blog[], numberOfArticles: number = 5): Promise<ArticleInput[]> {
     console.log('----Extracting Articles----');
     const parser = new Parser();
 
@@ -222,6 +222,7 @@ async function extractArticles(feeds: Blog[], numberOfArticles: number = 5) : Pr
 
 async function findQuotesFromArticles(articles: ArticleInput[]): Promise<QuoteOutput[]> {
     console.log('----Extracting Quotes from Articles----');
+
     const ExtractionSchema = z.object({
         quotes: z.array(
             z.object({
@@ -231,24 +232,19 @@ async function findQuotesFromArticles(articles: ArticleInput[]): Promise<QuoteOu
         ).describe("A list of quotes extracted from the article."),
     });
 
-    const parser = StructuredOutputParser.fromZodSchema(ExtractionSchema);
-
-    // 3. Initialize Model 
-    // Note: Ensure you use an "Instruct" or "Chat" model (like Mistral or Llama 3) 
-    // for better JSON compliance.
-    const model = new HuggingFaceInference({
-        model: "Qwen/Qwen2.5-1.5B-Instruct",
+    const model = new ChatGroq({
+        model: "openai/gpt-oss-20b",
         temperature: 0.1,
-        apiKey: process.env.HF_API_KEY || "",
-        
+        apiKey: process.env.GROQ_API_KEY || "",
     });
 
-    // 4. Update Prompt to include Format Instructions
+    const structuredModel = model.withStructuredOutput(ExtractionSchema, {
+        name: "extract_quotes"
+    });
+
     const prompt = PromptTemplate.fromTemplate(`
         You are an expert editor and curator. 
         Extract the most profound quotes from the content provided.
-        
-        {format_instructions}
         
         Rules:
         1. Extract multiple quotes if they are insightful.
@@ -259,25 +255,19 @@ async function findQuotesFromArticles(articles: ArticleInput[]): Promise<QuoteOu
         {content}
     `);
 
+    const extractionChain = prompt.pipe(structuredModel);
+
     const finalResults: QuoteOutput[] = [];
 
     for (const article of articles) {
         try {
-            // Format prompt with both the content AND the JSON instructions
-            const input = await prompt.format({
-                content: article.content,
-                format_instructions: parser.getFormatInstructions()
-            });
-
-            // 5. Invoke returns a string, so we parse it
-            const rawResponse = await model.invoke(input);
-            const result = await parser.parse(rawResponse);
+            const result = await extractionChain.invoke({ content: article.content });
 
             if (result && result.quotes) {
                 const mappedQuotes: QuoteOutput[] = result.quotes.map((q) => ({
                     title: article.title,
                     author: article.author,
-                    publication: article.publication, // Mapping 'blogTitle' to 'publication'
+                    publication: article.publication,
                     src: article.src,
                     datePublished: article.datePublished,
                     quote: q.quote,
@@ -285,6 +275,7 @@ async function findQuotesFromArticles(articles: ArticleInput[]): Promise<QuoteOu
                     thumbnail: article.thumbnail,
                     favicon: article.favicon,
                 }));
+
                 console.log(`Extracted ${mappedQuotes.length} quotes from article: "${article.title}"`);
                 finalResults.push(...mappedQuotes);
             }
@@ -292,6 +283,7 @@ async function findQuotesFromArticles(articles: ArticleInput[]): Promise<QuoteOu
             console.error(`Error processing article "${article.title}":`, error);
         }
     }
+
     console.log('----Quote Extraction Done----');
     return finalResults;
 }
@@ -317,13 +309,13 @@ export async function generateQuotes(req: Request, res: Response) {
         const user = users[0];
 
         const categories = user.interests || [];
-        const searchResults = await findRSSfeeds(categories, 20) as any[]; // Get 20 feed URLs to start with, we will filter down later
+        const searchResults = await findRSSfeeds(categories, 2) as any[]; // Get 20 feed URLs to start with, we will filter down later
         const feedDescriptions = await getRSSFeedDescriptionTitleFavicon(searchResults.map((feed: any) => feed.url));
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
         const rankedFeeds = await rankRSSfeeds(uniqueFeeds, JSON.parse(user.interest_embedding));
-        const topFeeds = await filterTopFeeds(rankedFeeds, 10); // Keep top 10 feeds to manage token limits and processing time
-        const extractedArticles = await extractArticles(topFeeds, 2); // Extract 2 articles per feed to stay within token limits
+        const topFeeds = await filterTopFeeds(rankedFeeds, 2); // Keep top 10 feeds to manage token limits and processing time
+        const extractedArticles = await extractArticles(topFeeds, 1); // Extract 2 articles per feed to stay within token limits
         const quotes = await findQuotesFromArticles(extractedArticles);
 
         console.log(`---- Pipeline Finished. Quotes found: ${quotes.length} ----`);
