@@ -293,6 +293,11 @@ async function sendQuotesToDatabase() {
 
 //main controller function to generate quotes based on user interests
 export async function generateQuotes(req: Request, res: Response) {
+
+    const numberOfFeeds = 2; // Number of feeds to process
+    const topFeedsToKeep = 2; // Number of top feeds to keep after ranking
+    const articlesPerFeed = 1; // Number of articles to extract per feed
+
     try {
         const userId = res.locals.session?.user?.id;
 
