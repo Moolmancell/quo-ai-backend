@@ -295,7 +295,7 @@ async function sendQuotesToDatabase() {
 export async function generateQuotes(req: Request, res: Response) {
 
     const numberOfFeeds = 2; // Number of feeds to process
-    const topFeedsToKeep = 2; // Number of top feeds to keep after ranking
+    const topFeedsToKeep = 2; // Number of top feeds to keep after ranking (NOTE: This should be <= numberOfFeeds)
     const articlesPerFeed = 1; // Number of articles to extract per feed
 
     try {
@@ -313,13 +313,13 @@ export async function generateQuotes(req: Request, res: Response) {
         const user = users[0];
 
         const categories = user.interests || [];
-        const searchResults = await findRSSfeeds(categories, 2) as any[]; // Get 20 feed URLs to start with, we will filter down later
+        const searchResults = await findRSSfeeds(categories, numberOfFeeds) as any[]; // Get the specified number of feed URLs to start with, we will filter down later
         const feedDescriptions = await getRSSFeedDescriptionTitleFavicon(searchResults.map((feed: any) => feed.url));
         const nonEmptyFeeds = await removeEmptyDescriptionsOrTitles(feedDescriptions);
         const uniqueFeeds = await removeDuplicateFeeds(nonEmptyFeeds);
         const rankedFeeds = await rankRSSfeeds(uniqueFeeds, JSON.parse(user.interest_embedding));
-        const topFeeds = await filterTopFeeds(rankedFeeds, 2); // Keep top 10 feeds to manage token limits and processing time
-        const extractedArticles = await extractArticles(topFeeds, 1); // Extract 2 articles per feed to stay within token limits
+        const topFeeds = await filterTopFeeds(rankedFeeds, topFeedsToKeep); // Keep top feeds to manage token limits and processing time
+        const extractedArticles = await extractArticles(topFeeds, articlesPerFeed); // Extract specified number of articles per feed to stay within token limits
         const quotes = await findQuotesFromArticles(extractedArticles);
 
         console.log(`---- Pipeline Finished. Quotes found: ${quotes.length} ----`);
