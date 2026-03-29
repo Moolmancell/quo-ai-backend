@@ -6,7 +6,7 @@ import { PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import { cleanRSSContent, cosineSimilarity, truncateContent } from "../utils/textUtils";
 import { delay } from "../utils/delayUtils";
-
+import { prisma } from '../lib/prisma';
 export interface Blog {
     url: string;
     description: string;
@@ -50,7 +50,7 @@ export class FeedService {
                 query: `site:.substack.com ${interests.join(" ")}`,
                 searchDepth: "advanced"
             });
-            
+
             const searchResults = (response.results || []).map((item: any) => ({
                 url: item.url,
             }));
@@ -210,6 +210,26 @@ export class FeedService {
     }
 
     async saveQuotes(quotes: QuoteOutput[]) {
-        //TODO: Implement database saving logic here, ensuring no duplicates and proper associations with users and sources.
+        console.log(`----Saving ${quotes.length} Quotes----`);
+        try {
+            const result = await prisma.quotes.createMany({
+                data: quotes.map((element) => ({
+                    title: element.title,
+                    author: element.author,
+                    publication: element.publication,
+                    src: element.src,
+                    datePublished: new Date(element.datePublished),
+                    quote: element.quote,
+                    topic: element.topic,
+                    thumbnail: element.thumbnail,
+                    favicon: element.favicon
+                })),
+                skipDuplicates: true,
+            });
+            console.log(`Successfully saved ${result.count} quotes.`);
+        } catch (error) {
+            console.error("Failed to save quotes to database:", error);
+            throw error;
+        }
     }
 }
