@@ -55,6 +55,9 @@ export async function generateQuotes(req: Request, res: Response) {
         const extractedArticles = await feedService.extractArticles(topFeeds, CONFIG.articlesPerFeed);
         const quotes = await feedService.findQuotesFromArticles(extractedArticles);
 
+        //5. Save quotes to database
+        await feedService.saveQuotes(quotes);
+        
         console.log(`---- Pipeline Finished. Quotes found: ${quotes.length} ----`);
 
         return res.status(200).json({
