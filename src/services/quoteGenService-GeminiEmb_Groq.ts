@@ -1,12 +1,14 @@
 import { TavilySearch } from "@langchain/tavily";
 import Parser from "rss-parser";
 import { createGeminiEmbeddings } from "../lib/gemini-embedings";
+import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { ChatGroq } from "@langchain/groq"
 import { PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
 import { cleanRSSContent, cosineSimilarity, truncateContent } from "../utils/textUtils";
 import { delay } from "../utils/delayUtils";
 import { prisma } from '../lib/prisma';
+
 export interface Blog {
     url: string;
     description: string;
@@ -36,6 +38,7 @@ export interface QuoteOutput {
     topic: string[];
     thumbnail: string;
     favicon: string;
+    embedding?: number[];
 }
 
 export class FeedService {
@@ -209,27 +212,76 @@ export class FeedService {
         return finalResults;
     }
 
+    async generateHuggingFaceEmbeddings(quotes: QuoteOutput[]): Promise<QuoteOutput[]> {
+        console.log('----Generating HuggingFace Embeddings----');
+        const model = new HuggingFaceInferenceEmbeddings({
+            apiKey: process.env.HF_API_KEY || "",
+            model: "sentence-transformers/all-mpnet-base-v2",
+        });
+
+        const quoteTexts = quotes.map(q => q.quote);
+        const embeddings = await model.embedDocuments(quoteTexts);
+
+        return quotes.map((quote, index) => ({
+            ...quote,
+            embedding: embeddings[index] || [],
+        }));
+    }
+
+    async ensureUniqueConstraint() {
+        try {
+            // Attempt to add a unique index to src column if it doesn't exist
+            // This is a idempotent way to add a unique constraint in PG 9.5+
+            await prisma.$executeRaw`
+                DO $$ 
+                BEGIN 
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_indexes 
+                        WHERE tablename = 'Quotes' AND indexname = 'Quotes_src_key'
+                    ) THEN 
+                        ALTER TABLE "Quotes" ADD CONSTRAINT "Quotes_src_key" UNIQUE (src);
+                    END IF; 
+                END $$;
+            `;
+        } catch (error) {
+            console.error("Failed to ensure unique constraint on Quotes table:", error);
+            // We'll swallow the error and try the insert anyway
+        }
+    }
+
     async saveQuotes(quotes: QuoteOutput[]) {
         console.log(`----Saving ${quotes.length} Quotes----`);
+        await this.ensureUniqueConstraint();
+        let savedCount = 0;
         try {
-            const result = await prisma.quotes.createMany({
-                data: quotes.map((element) => ({
-                    title: element.title,
-                    author: element.author,
-                    publication: element.publication,
-                    src: element.src,
-                    datePublished: new Date(element.datePublished),
-                    quote: element.quote,
-                    topic: element.topic,
-                    thumbnail: element.thumbnail,
-                    favicon: element.favicon
-                })),
-                skipDuplicates: true,
-            });
-            console.log(`Successfully saved ${result.count} quotes.`);
+            for (const element of quotes) {
+                const embeddingString = element.embedding ? `[${element.embedding.join(',')}]` : null;
+                const result = await prisma.$executeRaw`
+                    INSERT INTO "Quotes" (
+                        "id", "title", "author", "publication", "src", 
+                        "datePublished", "quote", "topic", "thumbnail", "favicon", "embedding"
+                    ) VALUES (
+                        ${Math.random().toString(36).substring(2, 15)}, 
+                        ${element.title}, 
+                        ${element.author}, 
+                        ${element.publication}, 
+                        ${element.src}, 
+                        ${new Date(element.datePublished)}, 
+                        ${element.quote}, 
+                        ${element.topic}, 
+                        ${element.thumbnail}, 
+                        ${element.favicon}, 
+                        ${embeddingString}::vector
+                    )
+                    ON CONFLICT (src) DO NOTHING
+                `;
+                savedCount += result;
+            }
+            console.log(`Successfully saved ${savedCount} quotes.`);
         } catch (error) {
             console.error("Failed to save quotes to database:", error);
             throw error;
         }
     }
 }
+

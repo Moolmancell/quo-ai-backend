@@ -55,14 +55,17 @@ export async function generateQuotes(req: Request, res: Response) {
         const extractedArticles = await feedService.extractArticles(topFeeds, CONFIG.articlesPerFeed);
         const quotes = await feedService.findQuotesFromArticles(extractedArticles);
 
-        //5. Save quotes to database
-        await feedService.saveQuotes(quotes);
+        // 5. Generate embeddings for quotes
+        const quotesWithEmbeddings = await feedService.generateHuggingFaceEmbeddings(quotes);
+
+        // 6. Save quotes to database
+        await feedService.saveQuotes(quotesWithEmbeddings);
         
-        console.log(`---- Pipeline Finished. Quotes found: ${quotes.length} ----`);
+        console.log(`---- Pipeline Finished. Quotes found: ${quotesWithEmbeddings.length} ----`);
 
         return res.status(200).json({
             success: true,
-            data: quotes
+            data: quotesWithEmbeddings
         });
     } catch (error) {
         console.error("Feed generation error:", error);
