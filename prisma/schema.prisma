@@ -83,11 +83,13 @@ model Quotes {
   title     String
   author    String
   publication String
-  src       String   @unique
+  src       String
   datePublished DateTime
   quote     String
   topic     String[]
   thumbnail String?
   favicon   String?
   embedding Unsupported("vector(768)")?
+
+  @@unique([src, quote])
 }

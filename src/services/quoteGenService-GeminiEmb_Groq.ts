@@ -230,16 +230,24 @@ export class FeedService {
 
     async ensureUniqueConstraint() {
         try {
-            // Attempt to add a unique index to src column if it doesn't exist
-            // This is a idempotent way to add a unique constraint in PG 9.5+
+            // Attempt to add a unique index to (src, quote) column if it doesn't exist
             await prisma.$executeRaw`
                 DO $$ 
                 BEGIN 
-                    IF NOT EXISTS (
+                    -- Drop the old single-column constraint if it exists
+                    IF EXISTS (
                         SELECT 1 FROM pg_indexes 
                         WHERE tablename = 'Quotes' AND indexname = 'Quotes_src_key'
                     ) THEN 
-                        ALTER TABLE "Quotes" ADD CONSTRAINT "Quotes_src_key" UNIQUE (src);
+                        ALTER TABLE "Quotes" DROP CONSTRAINT "Quotes_src_key";
+                    END IF; 
+
+                    -- Add the new multi-column constraint
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_indexes 
+                        WHERE tablename = 'Quotes' AND indexname = 'Quotes_src_quote_key'
+                    ) THEN 
+                        ALTER TABLE "Quotes" ADD CONSTRAINT "Quotes_src_quote_key" UNIQUE (src, quote);
                     END IF; 
                 END $$;
             `;
@@ -273,7 +281,7 @@ export class FeedService {
                         ${element.favicon}, 
                         ${embeddingString}::vector
                     )
-                    ON CONFLICT (src) DO NOTHING
+                    ON CONFLICT (src, quote) DO NOTHING
                 `;
                 savedCount += result;
             }
