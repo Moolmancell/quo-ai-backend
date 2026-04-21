@@ -283,5 +283,37 @@ export class FeedService {
             throw error;
         }
     }
+
+    async generateEmbeddingFromInterests(interests: string[]): Promise<number[]> {
+        const interestString = `The user is interested in: ${interests.join(", ")}`;
+        const embeddings = createGeminiEmbeddings();
+        return await embeddings.embedQuery(interestString);
+    }
+
+    async generateQuotesPipeline(interests: string[], userEmbedding: number[], config: { numberOfFeeds: number, topFeedsToKeep: number, articlesPerFeed: number }) {
+        // 1. Find RSS feeds based on interests
+        const searchResults = await this.findRSSfeeds(interests, config.numberOfFeeds);
+        
+        // 2. Get metadata and sanitize
+        const feedMetadata = await this.getFeedMetadata(searchResults.map((f: any) => f.url));
+        const sanitizedFeeds = await this.sanitizeFeeds(feedMetadata);
+        
+        // 3. Rank and filter
+        const rankedFeeds = await this.rankFeeds(sanitizedFeeds, userEmbedding);
+        const topFeeds = rankedFeeds.slice(0, config.topFeedsToKeep);
+        
+        // 4. Extract articles and quotes
+        const extractedArticles = await this.extractArticles(topFeeds, config.articlesPerFeed);
+        const quotes = await this.findQuotesFromArticles(extractedArticles);
+
+        // 5. Generate embeddings for quotes
+        const quotesWithEmbeddings = await this.generateHuggingFaceEmbeddings(quotes);
+
+        // 6. Save quotes to database
+        await this.saveQuotes(quotesWithEmbeddings);
+        
+        console.log(`---- Pipeline Finished. Quotes found: ${quotesWithEmbeddings.length} ----`);
+        return quotesWithEmbeddings;
+    }
 }
 

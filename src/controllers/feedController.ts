@@ -4,16 +4,16 @@ import { FeedService } from "../services/quoteGenService-GeminiEmb_Groq";
 
 const feedService = new FeedService();
 
+const DEFAULT_CONFIG = {
+    numberOfFeeds: 2,
+    topFeedsToKeep: 2,
+    articlesPerFeed: 1
+};
+
 /**
- * Main controller function to generate quotes based on user interests.
+ * Main controller function to generate quotes based on user interests from the database.
  */
 export async function generateQuotes(req: Request, res: Response) {
-    const CONFIG = {
-        numberOfFeeds: 2,
-        topFeedsToKeep: 2,
-        articlesPerFeed: 1
-    };
-
     try {
         const userId = res.locals.session?.user?.id;
         if (!userId) {
@@ -35,33 +35,15 @@ export async function generateQuotes(req: Request, res: Response) {
         }
 
         const categories = user.interests || [];
-        
-        // 1. Find RSS feeds based on interests
-        const searchResults = await feedService.findRSSfeeds(categories, CONFIG.numberOfFeeds);
-        
-        // 2. Get metadata and sanitize
-        const feedMetadata = await feedService.getFeedMetadata(searchResults.map((f: any) => f.url));
-        const sanitizedFeeds = await feedService.sanitizeFeeds(feedMetadata);
-        
-        // 3. Rank and filter
         const userEmbedding = typeof user.interest_embedding === 'string' 
             ? JSON.parse(user.interest_embedding) 
             : user.interest_embedding;
-            
-        const rankedFeeds = await feedService.rankFeeds(sanitizedFeeds, userEmbedding);
-        const topFeeds = rankedFeeds.slice(0, CONFIG.topFeedsToKeep);
-        
-        // 4. Extract articles and quotes
-        const extractedArticles = await feedService.extractArticles(topFeeds, CONFIG.articlesPerFeed);
-        const quotes = await feedService.findQuotesFromArticles(extractedArticles);
 
-        // 5. Generate embeddings for quotes
-        const quotesWithEmbeddings = await feedService.generateHuggingFaceEmbeddings(quotes);
-
-        // 6. Save quotes to database
-        await feedService.saveQuotes(quotesWithEmbeddings);
+        if (!userEmbedding) {
+            return res.status(400).json({ success: false, message: "User interests not initialized." });
+        }
         
-        console.log(`---- Pipeline Finished. Quotes found: ${quotesWithEmbeddings.length} ----`);
+        const quotesWithEmbeddings = await feedService.generateQuotesPipeline(categories, userEmbedding, DEFAULT_CONFIG);
 
         return res.status(200).json({
             success: true,
@@ -72,6 +54,40 @@ export async function generateQuotes(req: Request, res: Response) {
         return res.status(500).json({
             success: false,
             message: "Failed to generate feed."
+        });
+    }
+}
+
+/**
+ * Controller function to generate quotes based on interests passed as parameters.
+ */
+export async function generateQuotesByInterests(req: Request, res: Response) {
+    try {
+        const interests = req.body.interests || req.query.interests;
+        
+        if (!interests || !Array.isArray(interests)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "Interests are required as an array in the request body or query parameters." 
+            });
+        }
+
+        console.log(`Generating quotes for interests: ${interests.join(", ")}`);
+
+        // Generate embedding for the provided interests
+        const userEmbedding = await feedService.generateEmbeddingFromInterests(interests);
+        
+        const quotesWithEmbeddings = await feedService.generateQuotesPipeline(interests, userEmbedding, DEFAULT_CONFIG);
+
+        return res.status(200).json({
+            success: true,
+            data: quotesWithEmbeddings
+        });
+    } catch (error) {
+        console.error("Feed generation by interests error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to generate feed by interests."
         });
     }
 }
