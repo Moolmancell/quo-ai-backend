@@ -6,6 +6,8 @@ const app = express();
 import interestsRouter from "./routes/interestsRouter";
 import { isAuthenticated } from "./middlewares/isAuthenticated";
 import feedRouter from "./routes/feedRouter";
+import generateQuotesRouter from "./routes/generateQuotesRouter";
+import adminRouter from "./routes/adminRouter";
 
 const corsOptions = {
   origin: process.env.ORIGIN_URL || 'http://localhost:3000', 
@@ -18,7 +20,14 @@ app.all('/api/auth/{*any}', toNodeHandler(auth));
 
 //Interest Check Endpoints
 app.use('/api/interests', isAuthenticated, interestsRouter);
-//TODO: Create a /admin endpoint to manage quotes
+
+//Feed Endpoints
 app.use('/api/feed', isAuthenticated, feedRouter);
+
+//Generate Quotes Endpoints
+app.use('/api/gen-quotes', isAuthenticated, generateQuotesRouter);
+
+//Admin endpoints
+app.use('/api/admin', isAuthenticated, adminRouter);
 
 export default app;

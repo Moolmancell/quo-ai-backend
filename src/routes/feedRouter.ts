@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { generateQuotes, generateQuotesByInterests } from "../controllers/feedController";
 const feedRouter = Router();
 
 //Feed Endpoints
@@ -9,7 +8,4 @@ const feedRouter = Router();
 //TODO: Create /api/feed/add-bookmark/:userID endpoint
 //TODO: Create /api/feed/delete-bookmark/:userID endpoint
 //TODO: Create /api/feed/gen-feed endpoint
-feedRouter.post('/gen-quotes', generateQuotes)
-feedRouter.post('/gen-feed-by-quotes', generateQuotesByInterests)
-
 export default feedRouter;
