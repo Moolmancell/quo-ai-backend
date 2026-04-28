@@ -228,38 +228,8 @@ export class FeedService {
         }));
     }
 
-    async ensureUniqueConstraint() {
-        try {
-            // Attempt to add a unique index to (src, quote) column if it doesn't exist
-            await prisma.$executeRaw`
-                DO $$ 
-                BEGIN 
-                    -- Drop the old single-column constraint if it exists
-                    IF EXISTS (
-                        SELECT 1 FROM pg_indexes 
-                        WHERE tablename = 'Quotes' AND indexname = 'Quotes_src_key'
-                    ) THEN 
-                        ALTER TABLE "Quotes" DROP CONSTRAINT "Quotes_src_key";
-                    END IF; 
-
-                    -- Add the new multi-column constraint
-                    IF NOT EXISTS (
-                        SELECT 1 FROM pg_indexes 
-                        WHERE tablename = 'Quotes' AND indexname = 'Quotes_src_quote_key'
-                    ) THEN 
-                        ALTER TABLE "Quotes" ADD CONSTRAINT "Quotes_src_quote_key" UNIQUE (src, quote);
-                    END IF; 
-                END $$;
-            `;
-        } catch (error) {
-            console.error("Failed to ensure unique constraint on Quotes table:", error);
-            // We'll swallow the error and try the insert anyway
-        }
-    }
-
     async saveQuotes(quotes: QuoteOutput[]) {
         console.log(`----Saving ${quotes.length} Quotes----`);
-        await this.ensureUniqueConstraint();
         let savedCount = 0;
         try {
             for (const element of quotes) {
@@ -269,7 +239,7 @@ export class FeedService {
                         "id", "title", "author", "publication", "src", 
                         "datePublished", "quote", "topic", "thumbnail", "favicon", "embedding"
                     ) VALUES (
-                        ${Math.random().toString(36).substring(2, 15)}, 
+                        gen_random_uuid(),
                         ${element.title}, 
                         ${element.author}, 
                         ${element.publication}, 
