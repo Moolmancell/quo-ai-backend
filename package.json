@@ -27,6 +27,7 @@
     "@huggingface/inference": "^4.13.15",
     "@langchain/community": "^1.1.15",
     "@langchain/core": "^1.1.24",
+    "@langchain/google": "^0.1.11",
     "@langchain/google-genai": "^2.1.14",
     "@langchain/groq": "^1.1.5",
     "@langchain/tavily": "^1.2.0",
