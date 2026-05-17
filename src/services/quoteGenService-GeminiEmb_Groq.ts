@@ -52,7 +52,7 @@ export class FeedService {
             const response = await tool.invoke({
                 query: `site:.substack.com ${interests.join(" ")}`,
                 searchDepth: "advanced"
-            });
+            } as any);
 
             const searchResults = (response.results || []).map((item: any) => ({
                 url: item.url,
