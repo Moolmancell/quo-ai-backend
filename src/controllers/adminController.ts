@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
-import { FeedService } from "../services/quoteGenService-GeminiEmb_Groq";
+import { FeedService } from "../services/quoteGenService-GeminiEmb_Gemma";
 
 const feedService = new FeedService();
 
 const DEFAULT_CONFIG = {
-    numberOfFeeds: 2,
-    topFeedsToKeep: 2,
-    articlesPerFeed: 1
+    numberOfFeeds: 30,
+    topFeedsToKeep: 10,
+    articlesPerFeed: 5
 };
 
 export async function generateQuotesByInterests(req: Request, res: Response) {
