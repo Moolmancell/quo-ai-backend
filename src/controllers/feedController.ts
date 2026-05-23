@@ -26,31 +26,53 @@ export async function getFeed(req: Request, res: Response) {
             });
         }
 
-        // 2. Find quotes most similar to the user's interests
-        // We use cosine distance (<=>) for similarity search
-        // 1 - distance = similarity
-        const quotes = await prisma.$queryRaw<any[]>`
-            SELECT 
-                id, 
-                title, 
-                author, 
-                publication, 
-                src, 
-                "datePublished", 
-                quote, 
-                topic, 
-                thumbnail, 
-                favicon,
-                (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity
-            FROM "Quotes"
-            WHERE embedding IS NOT NULL
-            ORDER BY similarity DESC
-            LIMIT 30
+        // 2. Fetch a diversified set of quotes (70/20/10 distribution)
+        // Part 1: 70% Core (21 quotes) - Highest similarity
+        // Part 2: 20% Related (6 quotes) - Middle similarity
+        // Part 3: 10% Discovery (3 quotes) - Random selection
+        const diversifiedQuotes = await prisma.$queryRaw<any[]>`
+            (
+                SELECT 
+                    id, title, author, publication, src, "datePublished", quote, topic, thumbnail, favicon,
+                    (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity,
+                    'core' as category
+                FROM "Quotes"
+                WHERE embedding IS NOT NULL
+                ORDER BY similarity DESC
+                LIMIT 21
+            )
+            UNION ALL
+            (
+                SELECT 
+                    id, title, author, publication, src, "datePublished", quote, topic, thumbnail, favicon,
+                    (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity,
+                    'related' as category
+                FROM "Quotes"
+                WHERE embedding IS NOT NULL
+                ORDER BY similarity DESC
+                OFFSET 21
+                LIMIT 6
+            )
+            UNION ALL
+            (
+                SELECT 
+                    id, title, author, publication, src, "datePublished", quote, topic, thumbnail, favicon,
+                    (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity,
+                    'discovery' as category
+                FROM "Quotes"
+                WHERE embedding IS NOT NULL
+                ORDER BY RANDOM()
+                LIMIT 3
+            )
         `;
+
+        // 3. Shuffle the results to mix categories
+        const shuffledFeed = diversifiedQuotes.sort(() => Math.random() - 0.5);
 
         return res.status(200).json({
             success: true,
-            data: quotes
+            count: shuffledFeed.length,
+            data: shuffledFeed
         });
 
     } catch (error) {
