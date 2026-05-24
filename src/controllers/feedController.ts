@@ -84,10 +84,13 @@ export async function getFeed(req: Request, res: Response) {
         // 4. Shuffle the results to mix categories
         const shuffledFeed = diversifiedQuotes.sort(() => Math.random() - 0.5);
 
+        // 5. Strip out the similarity field from the final output
+        const finalFeed = shuffledFeed.map(({ similarity, ...rest }) => rest);
+
         return res.status(200).json({
             success: true,
-            count: shuffledFeed.length,
-            data: shuffledFeed
+            count: finalFeed.length,
+            data: finalFeed
         });
 
     } catch (error) {
