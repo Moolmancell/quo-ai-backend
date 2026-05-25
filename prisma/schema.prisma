@@ -31,6 +31,7 @@ model User {
   banReason         String?
   banExpiresAt      DateTime?
   quoteHistory      String[]                    @default([])
+  bookmarks        Quotes[]                     @relation("UserBookmarks")
 
   @@map("user")
 }
@@ -96,6 +97,7 @@ model Quotes {
   thumbnail     String?
   favicon       String?
   embedding     Unsupported("vector(768)")?
+  bookmarkedBy   User[]                      @relation("UserBookmarks")
 
   @@unique([src, quote])
 }
