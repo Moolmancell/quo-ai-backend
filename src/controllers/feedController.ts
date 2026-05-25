@@ -21,11 +21,11 @@ export async function getFeed(req: Request, res: Response) {
 
         const userEmbedding = users[0]?.embedding;
         const quoteHistory = users[0]?.quoteHistory || [];
-        
+
         if (!userEmbedding) {
-            return res.status(404).json({ 
-                success: false, 
-                message: "No interests found. Please set your interests first." 
+            return res.status(404).json({
+                success: false,
+                message: "No interests found. Please set your interests first."
             });
         }
 
@@ -74,7 +74,7 @@ export async function getFeed(req: Request, res: Response) {
         const newQuoteIds = diversifiedQuotes.map(q => q.id);
         if (newQuoteIds.length > 0) {
             const updatedHistory = [...new Set([...newQuoteIds, ...quoteHistory])].slice(0, 500);
-            
+
             await prisma.user.update({
                 where: { id: userId },
                 data: { quoteHistory: updatedHistory }
@@ -95,9 +95,56 @@ export async function getFeed(req: Request, res: Response) {
 
     } catch (error) {
         console.error("Feed retrieval error:", error);
-        return res.status(500).json({ 
-            success: false, 
-            message: "Failed to retrieve feed." 
+        return res.status(500).json({
+            success: false,
+            message: "Failed to retrieve feed."
+        });
+    }
+}
+
+export async function addBookmark(req: Request, res: Response) {
+    const userID = res.locals.session?.user?.id;
+    const { item } = req.body; // Destructures the item object
+    const itemId = item.id;
+
+    try {
+        await prisma.user.update({
+            where: { id: userID },
+            data: { bookmarks: { connect: { id: itemId } } }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Quote bookmarked successfully."
+        });
+    } catch (error) {
+        console.error("Error adding bookmark:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to add bookmark."
+        });
+    }
+}
+
+export async function deleteBookmark(req: Request, res: Response) {
+    const userID = res.locals.session?.user?.id;
+    const { id } = req.body; // Safely extracts the ID
+
+    try {
+        await prisma.user.update({
+            where: { id: userID },
+            data: { bookmarks: { disconnect: { id: id } } }
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Quote bookmark deleted successfully."
+        });
+    } catch (error) {
+        console.error("Error deleting bookmark:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Failed to delete bookmark."
         });
     }
 }
