@@ -103,14 +103,25 @@ export async function getFeed(req: Request, res: Response) {
 }
 
 export async function addBookmark(req: Request, res: Response) {
-    const userID = res.locals.session?.user?.id;
-    const { item } = req.body; // Destructures the item object
-    const itemId = item.id;
+    const userId = res.locals.session?.user?.id;
+    const { quoteId } = req.body;
+
+    if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!quoteId) {
+        return res.status(400).json({ success: false, message: "Quote ID is required." });
+    }
 
     try {
         await prisma.user.update({
-            where: { id: userID },
-            data: { bookmarks: { connect: { id: itemId } } }
+            where: { id: userId },
+            data: { 
+                bookmarks: { 
+                    connect: { id: quoteId } 
+                } 
+            }
         });
 
         return res.status(200).json({
@@ -127,13 +138,25 @@ export async function addBookmark(req: Request, res: Response) {
 }
 
 export async function deleteBookmark(req: Request, res: Response) {
-    const userID = res.locals.session?.user?.id;
-    const { id } = req.body; // Safely extracts the ID
+    const userId = res.locals.session?.user?.id;
+    const { quoteId } = req.body;
+
+    if (!userId) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!quoteId) {
+        return res.status(400).json({ success: false, message: "Quote ID is required." });
+    }
 
     try {
         await prisma.user.update({
-            where: { id: userID },
-            data: { bookmarks: { disconnect: { id: id } } }
+            where: { id: userId },
+            data: { 
+                bookmarks: { 
+                    disconnect: { id: quoteId } 
+                } 
+            }
         });
 
         return res.status(200).json({
