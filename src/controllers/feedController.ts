@@ -39,7 +39,7 @@ export async function getFeed(req: Request, res: Response) {
                     'core' as category
                 FROM "Quotes"
                 WHERE embedding IS NOT NULL 
-                AND id NOT IN (${quoteHistory.length > 0 ? quoteHistory : ['']})
+                AND NOT (id = ANY(${quoteHistory}::text[]))
                 ORDER BY similarity DESC
                 LIMIT 21
             )
@@ -51,7 +51,7 @@ export async function getFeed(req: Request, res: Response) {
                     'related' as category
                 FROM "Quotes"
                 WHERE embedding IS NOT NULL
-                AND id NOT IN (${quoteHistory.length > 0 ? quoteHistory : ['']})
+                AND NOT (id = ANY(${quoteHistory}::text[]))
                 ORDER BY similarity DESC
                 OFFSET 21
                 LIMIT 6
@@ -64,7 +64,7 @@ export async function getFeed(req: Request, res: Response) {
                     'discovery' as category
                 FROM "Quotes"
                 WHERE embedding IS NOT NULL
-                AND id NOT IN (${quoteHistory.length > 0 ? quoteHistory : ['']})
+                AND NOT (id = ANY(${quoteHistory}::text[]))
                 ORDER BY RANDOM()
                 LIMIT 3
             )
@@ -73,7 +73,7 @@ export async function getFeed(req: Request, res: Response) {
         // 3. Update User History
         const newQuoteIds = diversifiedQuotes.map(q => q.id);
         if (newQuoteIds.length > 0) {
-            const updatedHistory = [...newQuoteIds, ...quoteHistory].slice(0, 500);
+            const updatedHistory = [...new Set([...newQuoteIds, ...quoteHistory])].slice(0, 500);
             
             await prisma.user.update({
                 where: { id: userId },
