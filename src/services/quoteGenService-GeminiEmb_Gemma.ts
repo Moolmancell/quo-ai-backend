@@ -219,7 +219,7 @@ export class FeedService {
             model: "sentence-transformers/all-mpnet-base-v2",
         });
 
-        const quoteTexts = quotes.map(q => q.quote);
+        const quoteTexts = quotes.map(q => `${q.title}, ${q.quote}`);
         const embeddings = await model.embedDocuments(quoteTexts);
 
         return quotes.map((quote, index) => ({
