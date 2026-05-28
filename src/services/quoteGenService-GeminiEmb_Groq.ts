@@ -1,7 +1,6 @@
 import { TavilySearch } from "@langchain/tavily";
 import Parser from "rss-parser";
 import { createGeminiEmbeddings } from "../lib/gemini-embedings";
-import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { ChatGroq } from "@langchain/groq"
 import { PromptTemplate } from "@langchain/core/prompts";
 import { z } from "zod";
@@ -212,14 +211,11 @@ export class FeedService {
         return finalResults;
     }
 
-    async generateHuggingFaceEmbeddings(quotes: QuoteOutput[]): Promise<QuoteOutput[]> {
-        console.log('----Generating HuggingFace Embeddings----');
-        const model = new HuggingFaceInferenceEmbeddings({
-            apiKey: process.env.HF_API_KEY || "",
-            model: "sentence-transformers/all-mpnet-base-v2",
-        });
+    async generateQuoteEmbeddings(quotes: QuoteOutput[]): Promise<QuoteOutput[]> {
+        console.log('----Generating Gemini Embeddings for Quotes----');
+        const model = createGeminiEmbeddings(768);
 
-        const quoteTexts = quotes.map(q => q.quote);
+        const quoteTexts = quotes.map(q => `${q.title}, ${q.quote}`);
         const embeddings = await model.embedDocuments(quoteTexts);
 
         return quotes.map((quote, index) => ({
@@ -285,7 +281,7 @@ export class FeedService {
         const quotes = await this.findQuotesFromArticles(extractedArticles);
 
         // 5. Generate embeddings for quotes
-        const quotesWithEmbeddings = await this.generateHuggingFaceEmbeddings(quotes);
+        const quotesWithEmbeddings = await this.generateQuoteEmbeddings(quotes);
 
         // 6. Save quotes to database
         await this.saveQuotes(quotesWithEmbeddings);
