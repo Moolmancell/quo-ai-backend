@@ -33,12 +33,14 @@
     "@langchain/tavily": "^1.2.0",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
-    "axios": "^1.13.4",
+    "axios": "^1.16.1",
     "better-auth": "^1.4.9",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "langchain": "^1.2.16",
+    "metascraper": "^5.50.3",
+    "metascraper-date": "^5.50.1",
     "pg": "^8.16.3",
     "rss-parser": "^3.13.0",
     "zod": "^4.2.1"
@@ -46,6 +48,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/metascraper": "^5.14.3",
     "@types/node": "^25.0.3",
     "@types/pg": "^8.16.0",
     "nodemon": "^3.1.11",
