@@ -40,7 +40,9 @@
     "express": "^5.2.1",
     "langchain": "^1.2.16",
     "metascraper": "^5.50.3",
+    "metascraper-author": "^5.50.1",
     "metascraper-date": "^5.50.1",
+    "metascraper-publisher": "^5.50.1",
     "pg": "^8.16.3",
     "rss-parser": "^3.13.0",
     "zod": "^4.2.1"
