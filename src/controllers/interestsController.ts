@@ -7,17 +7,28 @@ export async function getInterests(req: Request, res: Response) {
   const userID = userSession.user.id;
 
   try {
+    // 1. Fetch the user and select only the topics from the relation
     const user = await prisma.user.findUnique({
       where: { id: userID },
-      select: { interests: true }, // Only fetch what we need
+      select: {
+        userInterests: {
+          select: {
+            topic: true,
+          },
+        },
+      },
     });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // 2. Map the array of objects [{ topic: "..." }] into a flat string array ["..."]
+    const interestsArray = user.userInterests.map((item) => item.topic);
+
+    // 3. Return it in the exact same shape as before
     return res.status(200).json({
-      interests: user.interests,
+      interests: interestsArray,
     });
 
   } catch (error) {
@@ -67,11 +78,6 @@ export async function submitInterests(req: Request, res: Response) {
 
     // 3. Database Transaction
     await prisma.$transaction(async (tx) => {
-      // Update User global interests
-      await tx.user.update({
-        where: { id: userID },
-        data: { interests: interestsArray },
-      });
 
       // Update User global embedding
       await tx.$executeRaw`

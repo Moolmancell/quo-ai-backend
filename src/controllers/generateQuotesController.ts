@@ -20,7 +20,7 @@ export async function generateQuotes(req: Request, res: Response) {
 
         const users = await prisma.$queryRaw<any[]>`
             SELECT 
-                interests, 
+                userInterests, 
                 "interestEmbedding"::vector as "interest_embedding"
             FROM "user"
             WHERE id = ${userId}
@@ -32,7 +32,7 @@ export async function generateQuotes(req: Request, res: Response) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        const categories = user.interests || [];
+        const categories = user.userInterests?.map((item: any) => item.topic) || [];
         const userEmbedding = typeof user.interest_embedding === 'string' 
             ? JSON.parse(user.interest_embedding) 
             : user.interest_embedding;
