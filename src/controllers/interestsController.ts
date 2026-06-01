@@ -31,38 +31,70 @@ export async function submitInterests(req: Request, res: Response) {
   const userID = userSession.user.id;
   const { interests } = req.body; // Expecting { interests: string[] }
   console.log(req.body)
+  const interestsArray = interests.slice(0, 10); // Limit to 10 interests
 
   try {
-    const interestString = `The user is interested in: ${interests.join(", ")}`;
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || "" });
 
-    // Generate Gemini Vector (768 dimensions)
-    const ai = new GoogleGenAI({});
-
-    const response = await ai.models.embedContent({
+    // 1. Generate Global Embedding
+    const globalInterestString = `The user is interested in: ${interestsArray.join(", ")}`;
+    const globalResponse = await ai.models.embedContent({
       model: 'gemini-embedding-001',
-      contents: interestString,
+      contents: globalInterestString,
       config: {
         outputDimensionality: 768,
       }
     });
 
-    const vector = response.embeddings?.[0]?.values;
+    const globalVector = globalResponse.embeddings?.[0]?.values;
 
-    if (!vector) {
-      throw new Error("Embedding generation failed");
+    if (!globalVector) {
+      throw new Error("Global embedding generation failed");
     }
 
-    await prisma.$transaction([
-      prisma.user.update({
+    // 2. Generate Individual Topic Embeddings
+    const individualResults = await Promise.all(interestsArray.map(async (topic: string) => {
+      const topicString = `Topic: ${topic}`;
+      const res = await ai.models.embedContent({
+        model: 'gemini-embedding-001',
+        contents: topicString,
+        config: {
+          outputDimensionality: 768,
+        }
+      });
+      return { topic, embedding: res.embeddings?.[0]?.values };
+    }));
+
+    // 3. Database Transaction
+    await prisma.$transaction(async (tx) => {
+      // Update User global interests
+      await tx.user.update({
         where: { id: userID },
-        data: { interests },
-      }),
-      prisma.$executeRaw`
+        data: { interests: interestsArray },
+      });
+
+      // Update User global embedding
+      await tx.$executeRaw`
         UPDATE "user"
-        SET "interestEmbedding" = ${JSON.stringify(vector)}::vector
+        SET "interestEmbedding" = ${JSON.stringify(globalVector)}::vector
         WHERE id = ${userID}
-      `,
-    ]);
+      `;
+
+      // Clear old UserInterests
+      await tx.$executeRaw`
+        DELETE FROM "UserInterest" WHERE "userId" = ${userID}
+      `;
+
+      // Insert new UserInterests
+      for (const item of individualResults) {
+        if (item.embedding) {
+          await tx.$executeRaw`
+            INSERT INTO "UserInterest" ("id", "userId", "topic", "embedding")
+            VALUES (gen_random_uuid(), ${userID}, ${item.topic}, ${JSON.stringify(item.embedding)}::vector)
+          `;
+        }
+      }
+    });
 
     return res.status(200).json({ message: "Interests updated successfully" });
   } catch (error) {
