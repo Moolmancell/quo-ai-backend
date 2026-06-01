@@ -32,8 +32,20 @@ model User {
   banExpiresAt      DateTime?
   quoteHistory      String[]                    @default([])
   bookmarks        Quotes[]                     @relation("UserBookmarks")
+  userInterests    UserInterest[]
 
   @@map("user")
+}
+
+model UserInterest {
+  id        String                      @id @default(cuid())
+  userId    String
+  user      User                        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic     String
+  embedding Unsupported("vector(768)")?
+  createdAt DateTime                    @default(now())
+
+  @@unique([userId, topic])
 }
 
 model Session {
