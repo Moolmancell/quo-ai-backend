@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { Request, Response } from 'express';
-import { GoogleGenAI } from "@google/genai";
+import { createGeminiEmbeddings } from '../lib/gemini-embedings';
 
 export async function getInterests(req: Request, res: Response) {
   const userSession = res.locals.session;
@@ -41,44 +41,35 @@ export async function submitInterests(req: Request, res: Response) {
   const userSession = res.locals.session;
   const userID = userSession.user.id;
   const { interests } = req.body; // Expecting { interests: string[] }
-  console.log(req.body)
+  
+  if (!interests || !Array.isArray(interests)) {
+    return res.status(400).json({ message: "Interests are required as an array." });
+  }
+
   const interestsArray = interests.slice(0, 10); // Limit to 10 interests
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_API_KEY || "" });
+    const embeddings = createGeminiEmbeddings();
 
     // 1. Generate Global Embedding
     const globalInterestString = `The user is interested in: ${interestsArray.join(", ")}`;
-    const globalResponse = await ai.models.embedContent({
-      model: 'gemini-embedding-001',
-      contents: globalInterestString,
-      config: {
-        outputDimensionality: 768,
-      }
-    });
-
-    const globalVector = globalResponse.embeddings?.[0]?.values;
+    const globalVector = await embeddings.embedQuery(globalInterestString);
 
     if (!globalVector) {
       throw new Error("Global embedding generation failed");
     }
 
-    // 2. Generate Individual Topic Embeddings
-    const individualResults = await Promise.all(interestsArray.map(async (topic: string) => {
-      const topicString = `Topic: ${topic}`;
-      const res = await ai.models.embedContent({
-        model: 'gemini-embedding-001',
-        contents: topicString,
-        config: {
-          outputDimensionality: 768,
-        }
-      });
-      return { topic, embedding: res.embeddings?.[0]?.values };
+    // 2. Generate Individual Topic Embeddings in batch
+    const topicStrings = interestsArray.map((topic: string) => `Topic: ${topic}`);
+    const individualEmbeddings = await embeddings.embedDocuments(topicStrings);
+    
+    const individualResults = interestsArray.map((topic, index) => ({
+      topic,
+      embedding: individualEmbeddings[index]
     }));
 
     // 3. Database Transaction
     await prisma.$transaction(async (tx) => {
-
       // Update User global embedding
       await tx.$executeRaw`
         UPDATE "user"
