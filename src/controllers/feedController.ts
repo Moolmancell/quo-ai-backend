@@ -115,18 +115,36 @@ export async function addBookmark(req: Request, res: Response) {
     }
 
     try {
-        await prisma.user.update({
-            where: { id: userId },
-            data: { 
-                bookmarks: { 
-                    connect: { id: quoteId } 
-                } 
-            }
+        await prisma.$transaction(async (tx) => {
+            // 1. Connect the bookmark
+            await tx.user.update({
+                where: { id: userId },
+                data: { 
+                    bookmarks: { 
+                        connect: { id: quoteId } 
+                    } 
+                }
+            });
+
+            // 2. Update interest embedding using weighted average (90/10)
+            await tx.$executeRaw`
+                UPDATE "user" u
+                SET "interestEmbedding" = (
+                    CASE 
+                        WHEN u."interestEmbedding" IS NULL THEN q.embedding
+                        ELSE (u."interestEmbedding" * 0.9 + q.embedding * 0.1)
+                    END
+                )
+                FROM "Quotes" q
+                WHERE u.id = ${userId}
+                  AND q.id = ${quoteId}
+                  AND q.embedding IS NOT NULL
+            `;
         });
 
         return res.status(200).json({
             success: true,
-            message: "Quote bookmarked successfully."
+            message: "Quote bookmarked and interests updated successfully."
         });
     } catch (error) {
         console.error("Error adding bookmark:", error);
