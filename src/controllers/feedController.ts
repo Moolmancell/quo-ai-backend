@@ -119,27 +119,46 @@ export async function addBookmark(req: Request, res: Response) {
             // 1. Connect the bookmark
             await tx.user.update({
                 where: { id: userId },
-                data: { 
-                    bookmarks: { 
-                        connect: { id: quoteId } 
-                    } 
+                data: {
+                    bookmarks: {
+                        connect: { id: quoteId }
+                    }
                 }
             });
 
-            // 2. Update interest embedding using weighted average (90/10)
-            await tx.$executeRaw`
-                UPDATE "user" u
-                SET "interestEmbedding" = (
-                    CASE 
-                        WHEN u."interestEmbedding" IS NULL THEN q.embedding
-                        ELSE (u."interestEmbedding" * 0.9 + q.embedding * 0.1)
-                    END
-                )
-                FROM "Quotes" q
-                WHERE u.id = ${userId}
-                  AND q.id = ${quoteId}
-                  AND q.embedding IS NOT NULL
+            // 2. Fetch both the user's current embedding and the quote's embedding
+            const [user]: [{ embedding: string }] = await tx.$queryRaw`
+                SELECT "interestEmbedding"::vector as embedding
+                FROM "user"
+                WHERE id = ${userId}
+                LIMIT 1
             `;
+
+            const [quote]: [{ embedding: string }] = await tx.$queryRaw`
+                SELECT embedding::vector
+                FROM "Quotes"
+                WHERE id = ${quoteId}
+                LIMIT 1
+            `;
+
+            // 3. If quote has an embedding, calculate the new interest embedding in JS/TS
+            if (quote) {
+                // Prisma returns pgvector as an array of numbers (e.g., [0.12, -0.43, ...])
+                const quoteEmb = JSON.parse(quote.embedding);
+                const userEmb = JSON.parse(user?.embedding);
+
+                let newEmbedding: number[];
+
+                // Perform the 90/10 weighted average
+                newEmbedding = userEmb.map((val:number, i:number) => (val * 0.9) + (quoteEmb[i] * 0.1));
+
+                // 4. Update the user with the new embedding array
+                await tx.$executeRaw`
+                    UPDATE "user"
+                    SET "interestEmbedding" = ${JSON.stringify(newEmbedding)}::vector
+                    WHERE id = ${userId}
+                `
+            }
         });
 
         return res.status(200).json({
@@ -157,23 +176,23 @@ export async function addBookmark(req: Request, res: Response) {
 
 export async function deleteBookmark(req: Request, res: Response) {
     const userId = res.locals.session?.user?.id;
-    const { quoteId } = req.body;
+    const { id } = req.body;
 
     if (!userId) {
         return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    if (!quoteId) {
+    if (!id) {
         return res.status(400).json({ success: false, message: "Quote ID is required." });
     }
 
     try {
         await prisma.user.update({
             where: { id: userId },
-            data: { 
-                bookmarks: { 
-                    disconnect: { id: quoteId } 
-                } 
+            data: {
+                bookmarks: {
+                    disconnect: { id: id }
+                }
             }
         });
 
