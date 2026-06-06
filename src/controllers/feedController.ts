@@ -1,5 +1,8 @@
 import { Request, Response } from "express";
 import { prisma } from '../lib/prisma';
+import { getCoreQuotes } from "../services/feedGenService/getCoreQuotes";
+import { getRelatedQuotes } from "../services/feedGenService/getRelatedQuotes";
+import { getUnrelatedQuotes } from "../services/feedGenService/getUnrelatedQuotes";
 
 export async function getFeed(req: Request, res: Response) {
     const userId = res.locals.session?.user?.id;
@@ -37,44 +40,16 @@ export async function getFeed(req: Request, res: Response) {
 
         // 2. Fetch a diversified set of quotes (70/20/10 distribution)
         // Filtering out already seen quotes using quoteHistory
-        const diversifiedQuotes = await prisma.$queryRaw<any[]>`
-            (
-                SELECT 
-                    id, title, author, publication, src, "datePublished", quote, topic, thumbnail, favicon,
-                    (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity,
-                    'core' as category
-                FROM "Quotes"
-                WHERE embedding IS NOT NULL 
-                AND NOT (id = ANY(${quoteHistory}::text[]))
-                ORDER BY similarity DESC
-                LIMIT 21
-            )
-            UNION ALL
-            (
-                SELECT 
-                    id, title, author, publication, src, "datePublished", quote, topic, thumbnail, favicon,
-                    (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity,
-                    'related' as category
-                FROM "Quotes"
-                WHERE embedding IS NOT NULL
-                AND NOT (id = ANY(${quoteHistory}::text[]))
-                ORDER BY similarity DESC
-                OFFSET 21
-                LIMIT 6
-            )
-            UNION ALL
-            (
-                SELECT 
-                    id, title, author, publication, src, "datePublished", quote, topic, thumbnail, favicon,
-                    (1 - (embedding <=> ${userEmbedding}::vector)) AS similarity,
-                    'discovery' as category
-                FROM "Quotes"
-                WHERE embedding IS NOT NULL
-                AND NOT (id = ANY(${quoteHistory}::text[]))
-                ORDER BY RANDOM()
-                LIMIT 3
-            )
-        `;
+        let diversifiedQuotes: any[] = [];
+
+        const coreQuotes = await getCoreQuotes(userEmbedding, quoteHistory, 21);
+        diversifiedQuotes = diversifiedQuotes.concat(coreQuotes);
+
+        const relatedQuotes = await getRelatedQuotes(userInterests, quoteHistory, 6, diversifiedQuotes.map(q => q.id));
+        diversifiedQuotes = diversifiedQuotes.concat(relatedQuotes);
+
+        const unrelatedQuotes = await getUnrelatedQuotes(userEmbedding, quoteHistory, 3, diversifiedQuotes.map(q => q.id));
+        diversifiedQuotes = diversifiedQuotes.concat(unrelatedQuotes);
 
         // 3. Update User History
         const newQuoteIds = diversifiedQuotes.map(q => q.id);
