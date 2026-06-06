@@ -10,17 +10,23 @@ export async function getFeed(req: Request, res: Response) {
 
     try {
         // 1. Fetch the user's interest embedding and history
-        const users = await prisma.$queryRaw<any[]>`
-            SELECT 
-                "interestEmbedding"::vector as embedding,
-                "quoteHistory"
+        const user: {
+            interestembedding: string,
+            quoteHistory: string[],
+            userinterests: { id: string, topic: string, embedding: string }[]
+        }[] = await prisma.$queryRaw`
+            SELECT "interestEmbedding"::vector as interestEmbedding, "quoteHistory",
+            (SELECT json_agg(json_build_object('id', id, 'topic', topic, 'embedding', embedding::vector))
+             FROM "UserInterest"
+             WHERE "userId" = ${userId}
+            ) as userInterests
             FROM "user"
-            WHERE id = ${userId}
-            LIMIT 1
+            WHERE "id" = ${userId}
         `;
-
-        const userEmbedding = users[0]?.embedding;
-        const quoteHistory = users[0]?.quoteHistory || [];
+        
+        const userInterests = user[0]?.userinterests || [];
+        const userEmbedding = user[0]?.interestembedding;
+        const quoteHistory = user[0]?.quoteHistory || [];
 
         if (!userEmbedding) {
             return res.status(404).json({
@@ -150,7 +156,7 @@ export async function addBookmark(req: Request, res: Response) {
                 let newEmbedding: number[];
 
                 // Perform the 90/10 weighted average
-                newEmbedding = userEmb.map((val:number, i:number) => (val * 0.9) + (quoteEmb[i] * 0.1));
+                newEmbedding = userEmb.map((val: number, i: number) => (val * 0.9) + (quoteEmb[i] * 0.1));
 
                 // 4. Update the user with the new embedding array
                 await tx.$executeRaw`
