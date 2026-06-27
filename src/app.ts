@@ -8,6 +8,7 @@ import { isAuthenticated } from "./middlewares/isAuthenticated";
 import feedRouter from "./routes/feedRouter";
 import generateQuotesRouter from "./routes/generateQuotesRouter";
 import adminRouter from "./routes/adminRouter";
+import searchRouter from "./routes/searchRouter";
 
 const corsOptions = {
   origin: process.env.ORIGIN_URL || 'http://localhost:3000', 
@@ -29,5 +30,8 @@ app.use('/api/gen-quotes', isAuthenticated, generateQuotesRouter);
 
 //Admin endpoints
 app.use('/api/admin', isAuthenticated, adminRouter);
+
+//Search endpoint
+app.use('/api/search', isAuthenticated, searchRouter);
 
 export default app;
